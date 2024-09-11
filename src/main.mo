@@ -14,14 +14,12 @@ actor this = {
 
     stable let reader_mem = Reader.Mem();
 
-    var errors : Text = "";
 
     let reader = Reader.Reader({
         mem = reader_mem;
         ledger_id = Principal.fromText("7pail-xaaaa-aaaas-aabmq-cai");
         start_from_block = #id(0);
         onError = func (_err) { 
-            errors := errors # "\n" # _err;
         };
         onCycleEnd = func (_inst) {};
         onRead = func (txs, _) {
@@ -34,9 +32,7 @@ actor this = {
 
     reader.start<system>();
 
-    public query func get_errors() : async Text {
-        errors;
-    };
+  
 
     public query func get_blocks({ start : Nat; length : Nat }) : async {total:Nat; entries:[?Reader.Transaction]} {
         let total = blocks.end();
