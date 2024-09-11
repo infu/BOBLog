@@ -1,60 +1,57 @@
 
-import rechain "mo:rechain";
 import Timer "mo:base/Timer";
 import Principal "mo:base/Principal";
-import reader "mo:rechain/readerDelta";
+import SWB "mo:swbstable/Stable";
+import Reader "mo:devefi-icrc-ledger/reader";
+import Nat "mo:base/Nat";
+import Array "mo:base/Array";
 
 actor this = {
 
-    public type ActionError = {ok:Nat; err:Text};
 
-    stable let chain_mem  = rechain.Mem();
+    stable let blocks_mem = SWB.SlidingWindowBufferNewMem<Reader.Transaction>();
+    let blocks = SWB.SlidingWindowBuffer<Reader.Transaction>(blocks_mem);
 
-   
-    var chain = rechain.Chain<rechain.Value, ActionError>({
-        settings = ?{rechain.DEFAULT_SETTINGS with supportedBlocks = [];};
-        mem = chain_mem;
-        encodeBlock = func (b: rechain.Value): ?[rechain.ValueMap] {
-            let #Map(v) = b else return null;
-            ?v;
-        };
-        reducers = [];
-    });
-    
+    stable let reader_mem = Reader.Mem();
 
-    stable let reader_mem = reader.Mem();
+    var errors : Text = "";
 
-
-    let my_reader = reader.Reader({
+    let reader = Reader.Reader({
         mem = reader_mem;
         ledger_id = Principal.fromText("7pail-xaaaa-aaaas-aabmq-cai");
         start_from_block = #id(0);
-        onError = func(_) {};
-        onCycleEnd = func (_) {}; 
-        onRead = func (blocks) {
-            label rec for (block in blocks.vals()) {
-                let ?b = block.block else continue rec;
-                ignore chain.dispatch(b);
+        onError = func (_err) { 
+            errors := errors # "\n" # _err;
+        };
+        onCycleEnd = func (_inst) {};
+        onRead = func (txs, _) {
+            for (tx in txs.vals()) {
+                ignore blocks.add(tx);
             }
-        }
+        };
+        maxSimultaneousRequests = 1;
     });
 
+    reader.start<system>();
 
-    ignore Timer.setTimer<system>(#seconds 0, func () : async () {
-        await chain.start_timers<system>();
-    });
-
-    public shared({caller}) func start(): async () {
-        assert(Principal.isController(caller));
-        chain_mem.canister := ?Principal.fromActor(this);
-        my_reader.start<system>();
+    public query func get_errors() : async Text {
+        errors;
     };
 
-    public query func icrc3_get_blocks(args: rechain.GetBlocksArgs) : async rechain.GetBlocksResult{
-        chain.get_blocks(args);
-    };
+    public query func get_blocks({ start : Nat; length : Nat }) : async {total:Nat; entries:[?Reader.Transaction]} {
+        let total = blocks.end();
+        let real_len = Nat.min(length, if (start > total) 0 else total - start);
 
-    public query func icrc3_get_archives(args: rechain.GetArchivesArgs) : async rechain.GetArchivesResult{
-        chain.get_archives(args);
-    };
+        let entries = Array.tabulate<?Reader.Transaction>(
+        real_len,
+        func(i) {
+            let id = start + i;
+            blocks.getOpt(id);
+            },
+        );
+        {
+        total;
+        entries;
+        };
+  };
 }
