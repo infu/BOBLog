@@ -2,4 +2,4 @@
 base = "0.11.1"
 rechain = "../rechain"
 swb = "1.2.0"
-devefi-icrc-ledger = "../devefi_icrc_ledger"
+devefi-icrc-ledger = "1.4.1"
