@@ -1,0 +1,14 @@
+{
+  "canisters": {
+    "reg": {
+      "type": "motoko",
+      "main": "./src/main.mo"
+    }
+   },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "dfx": "0.21.0"
+}
